@@ -2,14 +2,9 @@ package com.example.githubapi
 
 import android.os.Bundle
 import android.view.View
-import android.widget.Button
-import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 import android.view.inputmethod.InputMethodManager
 import android.content.Context
 import android.view.inputmethod.EditorInfo
@@ -18,6 +13,9 @@ import android.widget.Toast
 import com.example.githubapi.databinding.ActivityMainBinding
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import androidx.activity.viewModels
+import androidx.lifecycle.ViewModelProvider
+
 
 class MainActivity : AppCompatActivity() {
     private lateinit var recyclerView: RecyclerView
@@ -30,6 +28,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var emptyView: TextView
 
     private lateinit var binding: ActivityMainBinding
+
+    private lateinit var viewModel: MainViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,14 +47,22 @@ class MainActivity : AppCompatActivity() {
         adapter = RepoAdapter(emptyList())
         recyclerView.adapter = adapter
 
+        val repository = RepoRepository()
+        val factory = MainViewModelFactory(repository)
+
+        viewModel = ViewModelProvider(
+            this,
+            factory
+        )[MainViewModel::class.java]
+
+
         searchButton.setOnClickListener {
             val username = searchInput.text.toString()
             if (username.isNotEmpty()) {
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.hideSoftInputFromWindow(searchInput.windowToken, 0)
-                loadRepos(username)
+                viewModel.loadRepos(username)
             }
         }
+
 
         searchInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
@@ -62,7 +70,7 @@ class MainActivity : AppCompatActivity() {
                 if (username.isNotEmpty()) {
                     val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                     imm.hideSoftInputFromWindow(searchInput.windowToken, 0)
-                    loadRepos(username)
+                    viewModel.loadRepos(username)
                 }
                 true
             } else {
@@ -70,38 +78,37 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        loadRepos("octocat")
-    }
+        viewModel.uiState.observe(this) { state ->
 
-    private fun loadRepos(username: String) {
+            when (state) {
 
-        loadingOverlay.visibility = View.VISIBLE
-
-        lifecycleScope.launch {
-
-            try {
-                val repos = api.getRepos(username)
-
-                adapter.updateData(repos)
-
-                if (repos.isEmpty()) {
-                    emptyView.visibility = View.VISIBLE
-                } else {
-                    emptyView.visibility = View.GONE
+                is UiState.Loading -> {
+                    binding.loadingOverlay.visibility = View.VISIBLE
                 }
 
-            } catch (e: Exception) {
-                Toast.makeText(
-                    this@MainActivity,
-                    "ユーザーが存在しません",
-                    Toast.LENGTH_SHORT
-                ).show()
+                is UiState.Success -> {
+                    binding.loadingOverlay.visibility = View.GONE
+                    adapter.updateData(state.repos)
 
-                adapter.updateData(emptyList())
-            } finally {
-                loadingOverlay.visibility = View.GONE
+                    binding.emptyView.visibility =
+                        if (state.repos.isEmpty())
+                            View.VISIBLE
+                        else
+                            View.GONE
+                }
+
+                is UiState.Error -> {
+                    binding.loadingOverlay.visibility = View.GONE
+                    adapter.updateData(emptyList())
+                    Toast.makeText(this,
+                        state.message,
+                        Toast.LENGTH_SHORT).show()
+                }
             }
         }
+
+
+        viewModel.loadRepos("octocat")
     }
 
 }
