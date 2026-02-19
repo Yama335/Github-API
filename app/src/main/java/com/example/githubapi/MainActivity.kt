@@ -11,9 +11,6 @@ import android.view.inputmethod.EditorInfo
 import android.widget.TextView
 import android.widget.Toast
 import com.example.githubapi.databinding.ActivityMainBinding
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
-import androidx.activity.viewModels
 import androidx.lifecycle.ViewModelProvider
 
 
@@ -47,7 +44,8 @@ class MainActivity : AppCompatActivity() {
         adapter = RepoAdapter(emptyList())
         recyclerView.adapter = adapter
 
-        val repository = RepoRepository()
+        val api = RetrofitClient.instance
+        val repository: RepoRepository = RepoRepositoryImpl(api)
         val factory = MainViewModelFactory(repository)
 
         viewModel = ViewModelProvider(
